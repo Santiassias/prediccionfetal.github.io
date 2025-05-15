@@ -25,20 +25,22 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(STATIC_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-
+# Cargar dataset
 df = pd.read_excel('FGR_dataset.xlsx')
 X = df[[f'C{i}' for i in range(1, 31)]].values
 y = df['C31'].values
 
+# Escalado
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-
+# Media de C16 a C30 para predicción individual
 media_c16_c30 = df[[f'C{i}' for i in range(16, 31)]].mean().values
 
+# Dividir datos
 X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-
+# Rutas modelos
 MODELS = {
     'log': 'modelo_logistic.pkl',
     'svm': 'modelo_svm.pkl',
@@ -46,44 +48,38 @@ MODELS = {
     'fcm': 'modelo_fcm.pkl'
 }
 
-
+# Entrenar y guardar modelos si no existen
 if not all(os.path.exists(path) for path in MODELS.values()):
     # Regresión logística
     model_log = LogisticRegression(max_iter=2000)
     model_log.fit(X_train, y_train)
     pickle.dump(model_log, open(MODELS['log'], 'wb'))
 
-
+    # SVM
     model_svm = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True)
     model_svm.fit(X_train, y_train)
     pickle.dump(model_svm, open(MODELS['svm'], 'wb'))
 
-
+    # Red neuronal
     model_nn = MLPClassifier(hidden_layer_sizes=(50,), max_iter=1000)
     model_nn.fit(X_train, y_train)
     pickle.dump(model_nn, open(MODELS['nn'], 'wb'))
 
-
+    # FCM
     cntr, u, _, _, _, _, _ = fuzz.cluster.cmeans(
-        X_train.T,
-        c=2,
-        m=1.5,
-        error=0.001,
-        maxiter=2000,
-        seed=42
+        X_train.T, c=2, m=1.5, error=0.001, maxiter=2000, seed=42
     )
     labels_fcm = np.argmax(u, axis=0)
-
-
     cluster_labels = np.zeros(2)
     for i in range(2):
         cluster_labels[i] = mode(y_train[labels_fcm == i])[0]
-
     pickle.dump((cntr, cluster_labels), open(MODELS['fcm'], 'wb'))
 
+# Cargar modelo
 def cargar_modelo(nombre):
     return pickle.load(open(MODELS[nombre], 'rb'))
 
+# Guardar gráfico
 def guardar_grafico(preds, reales, tipo):
     nombre = f"{tipo}_{uuid.uuid4().hex}.png"
     ruta = os.path.join(STATIC_FOLDER, nombre)
@@ -121,6 +117,7 @@ def index():
     matriz = None
     exactitud = None
     grafico_linea = grafico_dispersion = grafico_matriz = None
+    tipo = None  # Para controlar qué sección mostrar en el HTML
 
     campos = [
         'Peso materno', 'Edad gestacional', 'Presión sistólica', 'Presión diastólica',
@@ -136,36 +133,24 @@ def index():
 
         if tipo == 'individual':
             try:
-                
                 datos = [float(request.form[f'C{i+1}']) for i in range(15)]
-                
-                datos.extend(media_c16_c30.tolist())  
-                datos_np = scaler.transform([datos])  
-
-                
+                datos.extend(media_c16_c30.tolist())
+                datos_np = scaler.transform([datos])
                 modelo = cargar_modelo(modelo_nombre)
 
-                
                 if modelo_nombre == 'fcm':
                     cntr, cluster_labels = modelo
-                    # Realizar la predicción con FCM
                     pred_fcm = fuzz.cluster.cmeans_predict(datos_np.T, cntr, 2, error=0.005, maxiter=1000)[0]
                     cluster_idx = int(np.argmax(pred_fcm))
                     pred = int(cluster_labels[cluster_idx])
-                    confianza = round(np.max(pred_fcm) * 100, 2)  
                 else:
                     pred = modelo.predict(datos_np)[0]
-                    confianza = ""
 
-                
                 resultado = f"{'Sano' if pred == 0 else 'Enfermo'}"
-                if confianza:
-                    resultado += f""
 
             except Exception as e:
                 resultado = f"Error en los datos: {e}"
-                confianza = ""
-        
+
         elif tipo == 'lote':
             archivo = request.files['archivo']
             if archivo:
@@ -199,10 +184,15 @@ def index():
                     grafico_dispersion = guardar_grafico(predicciones, y_lote, 'dispersion')
                     grafico_matriz = guardar_grafico(predicciones, y_lote, 'matriz')
 
-    return render_template("index.html", resultado=resultado, matriz=matriz,
-                           exactitud=exactitud, grafico_linea=grafico_linea,
+    return render_template("index.html", 
+                           resultado=resultado,
+                           matriz=matriz,
+                           exactitud=exactitud,
+                           grafico_linea=grafico_linea,
                            grafico_dispersion=grafico_dispersion,
-                           grafico_matriz=grafico_matriz, nombres=campos)
+                           grafico_matriz=grafico_matriz,
+                           nombres=campos,
+                           tipo_prediccion=tipo)  # ESTA ES LA CLAVE
 
 if __name__ == '__main__':
     app.run(debug=True)

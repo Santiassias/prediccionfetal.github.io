@@ -14,20 +14,20 @@
         <form method="POST" enctype="multipart/form-data" class="form-grid">
             <label for="modelo">Selecciona un modelo:</label>
             <select name="modelo" id="modelo" required>
-                <option value="log">Regresión Logística</option>
-                <option value="svm">SVM</option>
-                <option value="nn">Red Neuronal</option>
-                <option value="fcm">Mapa Cognitivo Difuso</option>
+                <option value="log" {% if modelo == 'log' %}selected{% endif %}>Regresión Logística</option>
+                <option value="svm" {% if modelo == 'svm' %}selected{% endif %}>SVM</option>
+                <option value="nn" {% if modelo == 'nn' %}selected{% endif %}>Red Neuronal</option>
+                <option value="fcm" {% if modelo == 'fcm' %}selected{% endif %}>Mapa Cognitivo Difuso</option>
             </select>
 
             <label for="tipo_prediccion">Tipo de predicción:</label>
             <select name="tipo_prediccion" id="tipo_prediccion" required onchange="mostrarCampos()">
-                <option value="individual">Individual</option>
-                <option value="lote">Por Lote</option>
+                <option value="individual" {% if tipo_prediccion == 'individual' %}selected{% endif %}>Individual</option>
+                <option value="lote" {% if tipo_prediccion == 'lote' %}selected{% endif %}>Por Lote</option>
             </select>
 
             <!-- Campos para predicción individual -->
-            <div id="campos_individuales" class="input-grid">
+            <div id="campos_individuales" class="input-grid" style="display: none;">
                 <div><label for="C1">Peso Materno:</label><input type="text" name="C1"></div>
                 <div><label for="C2">Edad Gestacional:</label><input type="text" name="C2"></div>
                 <div><label for="C3">Talla Materna:</label><input type="text" name="C3"></div>
@@ -46,7 +46,7 @@
             </div>
 
             <!-- Archivo para lote -->
-            <div id="archivo_lote" style="display:none;">
+            <div id="archivo_lote" style="display: none;">
                 <label for="archivo">Sube archivo Excel (.xlsx):</label>
                 <input type="file" name="archivo" accept=".xlsx">
             </div>
@@ -56,14 +56,14 @@
 
         <!-- Resultado Individual -->
         {% if resultado and tipo_prediccion == 'individual' %}
-            <div class="resultado">
+            <div class="resultado" id="resultado_individual">
                 <p>Resultado: {{ resultado }}</p>
             </div>
         {% endif %}
 
         <!-- Resultado por Lote -->
         {% if tipo_prediccion == 'lote' and matriz %}
-            <div class="resultados">
+            <div class="resultados" id="resultados_lote">
                 <h2>Matriz de Confusión:</h2>
                 <table>
                     {% for fila in matriz %}
@@ -77,7 +77,7 @@
                 <p>Exactitud: {{ exactitud }}%</p>
             </div>
 
-            <div class="graficas">
+            <div class="graficas" id="graficas_lote">
                 <h3>Gráficas:</h3>
                 <img src="{{ url_for('static', filename=grafico_matriz) }}" alt="Matriz de Confusión">
                 <img src="{{ url_for('static', filename=grafico_dispersion) }}" alt="Dispersión">
@@ -89,9 +89,28 @@
     <script>
         function mostrarCampos() {
             const tipo = document.getElementById("tipo_prediccion").value;
+
+            // Mostrar u ocultar inputs
             document.getElementById("campos_individuales").style.display = tipo === "individual" ? "grid" : "none";
             document.getElementById("archivo_lote").style.display = tipo === "lote" ? "block" : "none";
+
+            // Ocultar resultados del tipo contrario
+            const resultadoIndividual = document.getElementById("resultado_individual");
+            const resultadosLote = document.getElementById("resultados_lote");
+            const graficasLote = document.getElementById("graficas_lote");
+
+            if (tipo === "individual") {
+                if (resultadosLote) resultadosLote.style.display = "none";
+                if (graficasLote) graficasLote.style.display = "none";
+                if (resultadoIndividual) resultadoIndividual.style.display = "block";
+            } else if (tipo === "lote") {
+                if (resultadoIndividual) resultadoIndividual.style.display = "none";
+                if (resultadosLote) resultadosLote.style.display = "block";
+                if (graficasLote) graficasLote.style.display = "block";
+            }
         }
+
+        // Ejecutar al cargar
         window.onload = mostrarCampos;
     </script>
 
