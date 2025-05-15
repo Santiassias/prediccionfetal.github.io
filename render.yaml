@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: flask-fgr-app
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
